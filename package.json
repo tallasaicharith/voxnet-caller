@@ -1,0 +1,12 @@
+{
+  "name": "voxnet-online-caller",
+  "version": "1.0.0",
+  "description": "Free P2P Online Voice and Video Caller Application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2"
+  }
+}

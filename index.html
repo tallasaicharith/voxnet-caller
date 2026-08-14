@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VoxNet | Free Online P2P Voice & Video Caller</title>
+    <meta name="description" content="Free browser-to-browser WebRTC voice and video calling app to connect instantly with friends in HD audio and video.">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <!-- PeerJS CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Background Ambient Glows -->
+        <div class="glow-orb orb-1"></div>
+        <div class="glow-orb orb-2"></div>
+
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-phone-volume logo-icon"></i>
+                <span class="logo-text">Vox<span class="highlight">Net</span></span>
+                <span class="badge">P2P HD</span>
+            </div>
+            <div class="header-status">
+                <span class="status-dot online"></span>
+                <span id="network-status">Ready to Call</span>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- LOBBY VIEW (Pre-call Setup) -->
+            <section id="lobby-view" class="glass-card view-section active">
+                <div class="lobby-grid">
+                    <!-- Left: Camera/Audio Preview -->
+                    <div class="preview-container">
+                        <div class="video-preview-wrapper">
+                            <video id="local-preview-video" autoplay muted playsinline></video>
+                            <div class="avatar-placeholder" id="preview-avatar">
+                                <i class="fa-solid fa-user"></i>
+                            </div>
+                            <div class="preview-overlay">
+                                <div class="audio-meter-container">
+                                    <i class="fa-solid fa-microphone"></i>
+                                    <div class="meter-bar-track">
+                                        <div class="meter-bar-fill" id="mic-level-fill"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Device Toggles -->
+                        <div class="device-controls">
+                            <button id="toggle-preview-mic" class="icon-btn active" title="Toggle Microphone">
+                                <i class="fa-solid fa-microphone"></i>
+                            </button>
+                            <button id="toggle-preview-cam" class="icon-btn active" title="Toggle Camera">
+                                <i class="fa-solid fa-video"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Right: Call Setup Form -->
+                    <div class="call-setup-panel">
+                        <h2>Free Voice & Video Calls</h2>
+                        <p class="subtitle">Call your friends instantly over encrypted P2P data connection. No login or phone fees required.</p>
+
+                        <!-- Your Caller ID Display -->
+                        <div class="my-id-box">
+                            <label>Your Personal Call ID:</label>
+                            <div class="id-input-group">
+                                <input type="text" id="my-peer-id" readonly value="Connecting..." />
+                                <button id="copy-my-id-btn" class="btn-secondary" title="Copy your ID">
+                                    <i class="fa-solid fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="divider"><span>OR</span></div>
+
+                        <!-- Start or Join Call -->
+                        <div class="call-action-tabs">
+                            <div class="tab-content active" id="tab-start">
+                                <button id="create-room-btn" class="btn-primary btn-large">
+                                    <i class="fa-solid fa-plus-circle"></i> Create New Call Room
+                                </button>
+                            </div>
+
+                            <div class="join-box">
+                                <label for="target-peer-id">Friend's Call ID or Room Code:</label>
+                                <div class="join-input-group">
+                                    <input type="text" id="target-peer-id" placeholder="Enter Call ID e.g. vox-8921" autocomplete="off" />
+                                    <button id="start-call-btn" class="btn-success">
+                                        <i class="fa-solid fa-phone"></i> Call Now
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="feature-pills">
+                            <span><i class="fa-solid fa-lock"></i> End-to-End P2P</span>
+                            <span><i class="fa-solid fa-bolt"></i> 48kHz HD Audio</span>
+                            <span><i class="fa-solid fa-desktop"></i> Screen Share</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CALL ACTIVE VIEW -->
+            <section id="call-view" class="view-section">
+                <!-- Top Call Info Bar -->
+                <div class="call-header-bar glass-card">
+                    <div class="call-info">
+                        <span class="live-badge"><i class="fa-solid fa-circle"></i> LIVE CALL</span>
+                        <span id="call-timer">00:00</span>
+                        <span class="room-id-tag">Room: <strong id="active-room-id">---</strong></span>
+                    </div>
+                    <div class="call-actions-top">
+                        <button id="copy-room-link-btn" class="btn-secondary btn-sm">
+                            <i class="fa-solid fa-link"></i> Share Link
+                        </button>
+                        <button id="toggle-chat-btn" class="btn-secondary btn-sm">
+                            <i class="fa-solid fa-comments"></i> Chat
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Video Grid Area -->
+                <div class="video-grid" id="video-grid">
+                    <!-- Remote Video Card -->
+                    <div class="video-card remote-card" id="remote-video-container">
+                        <video id="remote-video" autoplay playsinline></video>
+                        <div class="avatar-placeholder" id="remote-avatar">
+                            <i class="fa-solid fa-user-astronaut"></i>
+                            <span class="peer-label">Friend</span>
+                        </div>
+                        <div class="card-overlay">
+                            <span class="participant-name" id="remote-name">Friend</span>
+                            <div class="waveform-anim" id="remote-waveform">
+                                <span></span><span></span><span></span><span></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Local Video Card (Floating / PiP) -->
+                    <div class="video-card local-card" id="local-video-container">
+                        <video id="local-video" autoplay muted playsinline></video>
+                        <div class="avatar-placeholder" id="local-avatar">
+                            <i class="fa-solid fa-user"></i>
+                            <span class="peer-label">You</span>
+                        </div>
+                        <div class="card-overlay">
+                            <span class="participant-name">You</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- In-Call Floating Controls Bar -->
+                <div class="controls-bar glass-card">
+                    <button id="call-toggle-mic" class="control-btn active" title="Mute/Unmute Mic">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+
+                    <button id="call-toggle-cam" class="control-btn active" title="Camera On/Off">
+                        <i class="fa-solid fa-video"></i>
+                    </button>
+
+                    <button id="call-share-screen" class="control-btn" title="Share Screen">
+                        <i class="fa-solid fa-desktop"></i>
+                    </button>
+
+                    <button id="play-sfx-bell" class="control-btn" title="Play Chime SFX">
+                        <i class="fa-solid fa-bell"></i>
+                    </button>
+
+                    <button id="end-call-btn" class="control-btn btn-danger" title="End Call">
+                        <i class="fa-solid fa-phone-slash"></i>
+                    </button>
+                </div>
+            </section>
+
+            <!-- IN-CALL CHAT DRAWER -->
+            <aside id="chat-drawer" class="chat-drawer glass-card">
+                <div class="chat-header">
+                    <h3><i class="fa-solid fa-comments"></i> Call Chat</h3>
+                    <button id="close-chat-btn" class="icon-btn-sm"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div class="system-message">Connected to call. Say hi to your friend!</div>
+                </div>
+                <div class="chat-input-box">
+                    <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off" />
+                    <button id="send-chat-btn" class="btn-primary btn-icon">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Notification Toast -->
+        <div id="toast-container" class="toast-container"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
