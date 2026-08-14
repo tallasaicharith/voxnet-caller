@@ -17,14 +17,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// Serve static assets
+// Serve static assets  
 app.use(express.static(__dirname, {
     maxAge: '1h',
-    setHeaders: (res, path) => {
-        if (path.endsWith('.css')) {
-            res.setHeader('Content-Type', 'text/css');
-        } else if (path.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript');
+    setHeaders: (res, pathname) => {
+        if (pathname.endsWith('.css')) {
+            res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (pathname.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
         }
     }
 }));
