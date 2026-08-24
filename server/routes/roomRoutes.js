@@ -174,18 +174,30 @@ router.post('/rooms/:id/messages', async (req, res) => {
 
 /**
  * POST /api/rooms/:id/join
- * Registers a participant joining a meeting
+ * Registers a participant joining a meeting (idempotent)
  */
 router.post('/rooms/:id/join', async (req, res) => {
   try {
     const { id: meetingId } = req.params;
     const { userId, userName, socketId } = req.body;
 
+    const name = userName || 'Participant';
+    const uid = userId && userId !== 'local' ? userId : `usr-${name.toLowerCase().replace(/\s+/g, '-')}`;
+
+    // Check if participant already exists in this meeting
+    let existing = await prisma.meetingParticipant.findFirst({
+      where: { meetingId, userId: uid }
+    });
+
+    if (existing) {
+      return res.status(200).json({ success: true, participant: existing });
+    }
+
     const p = await prisma.meetingParticipant.create({
       data: {
         meetingId,
-        userId: userId || `usr-${Date.now()}`,
-        name: userName || 'Participant',
+        userId: uid,
+        name: name,
         role: 'PARTICIPANT',
       }
     });

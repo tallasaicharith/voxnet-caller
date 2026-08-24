@@ -83,8 +83,13 @@ export class RTCClient {
     this.signaling.onParticipantJoined = async (participant) => {
       console.log('[RTCClient] New participant joined:', participant.name, participant.socketId);
       if (this.currentRoomState) {
-        this.currentRoomState.participants.push(participant);
-        this.events.onRoomStateChange({ ...this.currentRoomState });
+        const exists = this.currentRoomState.participants.some(
+          p => p.id === participant.id || p.socketId === participant.socketId || (p.name === participant.name && p.name !== 'Host User' && p.name !== 'You')
+        );
+        if (!exists) {
+          this.currentRoomState.participants.push(participant);
+          this.events.onRoomStateChange({ ...this.currentRoomState });
+        }
       }
 
       // Initiate WebRTC offer to new joiner

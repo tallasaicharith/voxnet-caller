@@ -149,8 +149,8 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
           if (data.success && Array.isArray(data.participants) && data.participants.length > 0) {
             setRoomState(prev => {
               if (!prev) return prev;
-              const existingIds = new Set(prev.participants.map(p => p.id));
-              const newParts = data.participants.filter((p: any) => !existingIds.has(p.id));
+              const existingKeys = new Set(prev.participants.flatMap(p => [p.id, p.socketId, p.name]));
+              const newParts = data.participants.filter((p: any) => !existingKeys.has(p.id) && !existingKeys.has(p.name));
               if (newParts.length === 0) return prev;
               return {
                 ...prev,
@@ -303,7 +303,10 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const participantsList = roomState ? roomState.participants : [];
+  const rawParticipants = roomState ? roomState.participants : [];
+  const participantsList = Array.from(
+    new Map(rawParticipants.map(p => [p.socketId || p.id || p.name, p])).values()
+  );
 
   return (
     <div className="relative h-screen w-screen bg-[#08090C] text-slate-100 flex flex-col overflow-hidden">
