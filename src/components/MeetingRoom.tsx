@@ -146,13 +146,33 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
       fetch(`/api/rooms/${roomId}/participants`)
         .then(res => res.json())
         .then(data => {
-          if (data.success && Array.isArray(data.participants) && data.participants.length > 0) {
+          if (data.success && Array.isArray(data.participants)) {
             setRoomState(prev => {
               if (!prev) return prev;
-              const existingKeys = new Set(prev.participants.flatMap(p => [p.id, p.socketId, p.name]));
-              const newParts = data.participants.filter((p: any) => !existingKeys.has(p.id) && !existingKeys.has(p.name));
-              if (newParts.length === 0) return prev;
-              const mapped = newParts.map((p: any) => ({
+              const activeNames = new Set(data.participants.map((p: any) => (p.name || '').toLowerCase().trim()));
+              const activeIds = new Set(data.participants.map((p: any) => p.id));
+              const activeSocketIds = new Set(data.participants.map((p: any) => p.socketId));
+
+              const currentSocketId = rtcClientRef.current?.signaling.getSocketId();
+
+              const updatedParticipants = prev.participants.filter(p => {
+                const isLocalUser = p.socketId === 'local' || p.socketId === currentSocketId || p.id === userId || p.id === 'p-local' || p.name === userName;
+                if (isLocalUser) return true;
+                const pName = (p.name || '').toLowerCase().trim();
+                return activeNames.has(pName) || activeIds.has(p.id) || activeSocketIds.has(p.socketId);
+              });
+
+              const existingKeys = new Set(updatedParticipants.flatMap(p => [p.id, p.socketId, (p.name || '').toLowerCase().trim()]));
+              const newParts = data.participants.filter((p: any) => {
+                const pName = (p.name || '').toLowerCase().trim();
+                return !existingKeys.has(p.id) && !existingKeys.has(pName);
+              });
+
+              if (newParts.length === 0 && updatedParticipants.length === prev.participants.length) {
+                return prev;
+              }
+
+              const mappedNew = newParts.map((p: any) => ({
                 id: p.id,
                 socketId: p.socketId || p.id,
                 name: p.name,
@@ -163,9 +183,10 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
                 connectionQuality: 'Excellent' as const,
                 joinedAt: p.joinedAt || new Date().toISOString(),
               }));
+
               return {
                 ...prev,
-                participants: [...prev.participants, ...mapped]
+                participants: [...updatedParticipants, ...mappedNew]
               };
             });
           }
@@ -176,6 +197,11 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
     return () => {
       clearInterval(timer);
       clearInterval(pollInterval);
+      fetch(`/api/rooms/${roomId}/leave`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userId || 'local' })
+      }).catch(() => {});
       client.leaveRoom();
     };
   }, [roomId, userName, userId]);
@@ -303,7 +329,14 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
 
   const rawParticipants = roomState ? roomState.participants : [];
   const participantsList = Array.from(
-    new Map(rawParticipants.map(p => [p.socketId || p.id || p.name, p])).values()
+    new Map(
+      rawParticipants.map(p => {
+        const key = (p.name && p.name !== 'You' && p.name !== 'Host User')
+          ? p.name.toLowerCase().trim()
+          : (p.socketId || p.id);
+        return [key, p];
+      })
+    ).values()
   );
 
   return (
@@ -356,7 +389,9 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
             {participantsList.map((p) => {
               const currentSocketId = rtcClientRef.current?.signaling.getSocketId();
               const isMe = p.socketId === 'local' || p.socketId === currentSocketId || p.id === userId || p.id === 'p-local' || p.name === userName;
-              const stream = isMe ? (localStream || rtcClientRef.current?.media.getStream()) : remoteStreams.get(p.socketId);
+              const stream = isMe
+                ? (localStream || rtcClientRef.current?.media.getStream())
+                : (remoteStreams.get(p.socketId) || remoteStreams.get(p.id) || Array.from(remoteStreams.values())[0]);
 
               return (
                 <VideoTile

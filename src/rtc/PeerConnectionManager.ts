@@ -71,14 +71,26 @@ export class PeerConnectionManager {
 
     // Track event handler
     pc.ontrack = (event) => {
-      console.log(`[WebRTC] Received remote track from ${remoteSocketId}:`, event.track.kind);
-      let stream = this.remoteStreams.get(remoteSocketId);
-      if (!stream) {
-        stream = new MediaStream();
-        this.remoteStreams.set(remoteSocketId, stream);
+      console.log(`[WebRTC] Received remote track (${event.track.kind}) from ${remoteSocketId}`);
+      let existingStream = this.remoteStreams.get(remoteSocketId);
+      const newStream = new MediaStream();
+
+      if (existingStream) {
+        existingStream.getTracks().forEach(t => newStream.addTrack(t));
       }
-      stream.addTrack(event.track);
-      this.callbacks.onRemoteStream(remoteSocketId, stream);
+      if (event.streams && event.streams[0]) {
+        event.streams[0].getTracks().forEach(t => {
+          if (!newStream.getTracks().some(tr => tr.id === t.id)) {
+            newStream.addTrack(t);
+          }
+        });
+      }
+      if (event.track && !newStream.getTracks().some(t => t.id === event.track.id)) {
+        newStream.addTrack(event.track);
+      }
+
+      this.remoteStreams.set(remoteSocketId, newStream);
+      this.callbacks.onRemoteStream(remoteSocketId, newStream);
     };
 
     // Connection state change

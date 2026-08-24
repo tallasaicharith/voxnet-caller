@@ -154,9 +154,7 @@ export class RTCClient {
 
   public async initializeAndJoin(roomId: string, userName: string, userId?: string) {
     try {
-      await this.signaling.connect();
-
-      // Acquire local media
+      // 1. Acquire local media FIRST before connecting to signaling
       let stream: MediaStream | null = null;
       try {
         stream = await this.media.getLocalMedia();
@@ -165,7 +163,10 @@ export class RTCClient {
         console.warn('Could not acquire local camera/mic stream:', mediaErr);
       }
 
-      // Join room via signaling server or fallback
+      // 2. Connect to signaling server
+      await this.signaling.connect();
+
+      // 3. Join room via signaling server or fallback
       const res = await this.signaling.joinRoom(roomId, userName, userId);
       if (!res.success || !res.room) {
         throw new Error(res.error || 'Failed to join room');
@@ -174,18 +175,25 @@ export class RTCClient {
       this.currentRoomState = res.room;
       this.localParticipantId = res.participantId || null;
 
-      const socketId = this.signaling.getSocketId() || 'local';
+      const mySocketId = this.signaling.getSocketId() || 'local';
       if (stream) {
-        this.activeSpeaker.registerStream(socketId, stream);
+        this.activeSpeaker.registerStream(mySocketId, stream);
+      }
+
+      // 4. Initiate WebRTC peer connection to all existing remote participants
+      const remoteParticipants = res.room.participants.filter(
+        p => p.socketId !== mySocketId && p.socketId !== 'local' && p.id !== this.localParticipantId
+      );
+
+      for (const remoteP of remoteParticipants) {
+        console.log('[RTCClient] Creating WebRTC offer for existing participant:', remoteP.name, remoteP.socketId);
+        await this.peerManager.createOffer(remoteP.socketId);
       }
 
       this.events.onRoomStateChange(res.room);
 
       // Start Quality Monitor
-      const remoteSockets = res.room.participants
-        .map(p => p.socketId)
-        .filter(s => s !== socketId);
-
+      const remoteSockets = remoteParticipants.map(p => p.socketId);
       if (remoteSockets.length > 0) {
         this.qualityMonitor.startMonitoring((sId) => this.peerManager.getStats(sId), remoteSockets);
       }

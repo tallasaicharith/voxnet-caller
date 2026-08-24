@@ -210,8 +210,37 @@ router.post('/rooms/:id/join', async (req, res) => {
 });
 
 /**
+ * POST /api/rooms/:id/leave
+ * Marks a participant as left in the database
+ */
+router.post('/rooms/:id/leave', async (req, res) => {
+  try {
+    const { id: meetingId } = req.params;
+    const { userId } = req.body;
+
+    const uid = userId && userId !== 'local' ? userId : null;
+    if (uid) {
+      const p = await prisma.meetingParticipant.findFirst({
+        where: { meetingId, userId: uid, leftAt: null }
+      });
+      if (p) {
+        await prisma.meetingParticipant.update({
+          where: { id: p.id },
+          data: { leftAt: new Date() }
+        });
+      }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error in leave API:', error);
+    res.status(500).json({ success: false, error: 'Failed to record leave' });
+  }
+});
+
+/**
  * GET /api/rooms/:id/participants
- * Fetches all participants in a meeting
+ * Fetches active participants in a meeting (where leftAt is null)
  */
 router.get('/rooms/:id/participants', async (req, res) => {
   try {
@@ -224,8 +253,8 @@ router.get('/rooms/:id/participants', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Meeting not found' });
     }
 
-    const participants = meeting.participants || [];
-    res.json({ success: true, participants });
+    const activeParticipants = (meeting.participants || []).filter((p) => !p.leftAt);
+    res.json({ success: true, participants: activeParticipants });
   } catch (error) {
     console.error('Error fetching participants:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch participants' });

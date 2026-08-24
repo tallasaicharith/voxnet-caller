@@ -22,12 +22,40 @@ export const VideoTile: React.FC<VideoTileProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
-    if (videoRef.current && stream) {
-      if (videoRef.current.srcObject !== stream) {
-        videoRef.current.srcObject = stream;
-      }
+    const videoEl = videoRef.current;
+    if (!videoEl || !stream) return;
+
+    if (videoEl.srcObject !== stream) {
+      videoEl.srcObject = stream;
     }
-  }, [stream]);
+
+    const playVideo = () => {
+      videoEl.play().catch((err) => {
+        console.warn('[VideoTile] Autoplay restricted, attempting muted playback:', err);
+        if (!isLocal) {
+          videoEl.muted = true;
+          videoEl.play().catch((e) => console.error('[VideoTile] Remote play error:', e));
+        }
+      });
+    };
+
+    playVideo();
+
+    const handleTrackEvent = () => {
+      if (videoEl.srcObject !== stream) {
+        videoEl.srcObject = stream;
+      }
+      playVideo();
+    };
+
+    stream.addEventListener('addtrack', handleTrackEvent);
+    stream.addEventListener('removetrack', handleTrackEvent);
+
+    return () => {
+      stream.removeEventListener('addtrack', handleTrackEvent);
+      stream.removeEventListener('removetrack', handleTrackEvent);
+    };
+  }, [stream, isLocal]);
 
   const getQualityColor = (quality: string) => {
     switch (quality) {

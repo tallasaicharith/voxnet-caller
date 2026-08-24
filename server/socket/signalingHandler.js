@@ -301,14 +301,20 @@ export function setupSignalingHandlers(io) {
         const { roomId, participantId } = mapping;
         socketParticipantMap.delete(socket.id);
 
-        // Update DB session
+        // Update DB session and participant leftAt
         try {
           await prisma.meetingSession.updateMany({
             where: { socketId: socket.id, status: 'ACTIVE' },
             data: { disconnectedAt: new Date(), status: 'DISCONNECTED' }
           });
+          if (participantId) {
+            await prisma.meetingParticipant.update({
+              where: { id: participantId },
+              data: { leftAt: new Date() }
+            });
+          }
         } catch (e) {
-          console.error('Failed to update session disconnect:', e);
+          console.warn('Failed to update session disconnect:', e);
         }
 
         const roomCache = activeRooms.get(roomId);
