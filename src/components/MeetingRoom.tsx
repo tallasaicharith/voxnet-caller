@@ -28,7 +28,24 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
   initialCameraOff = false,
   onLeaveMeeting,
 }) => {
-  const [roomState, setRoomState] = useState<RoomState | null>(null);
+  const [roomState, setRoomState] = useState<RoomState>(() => ({
+    id: roomId,
+    title: 'VoxNet Call',
+    hostId: userId || 'p-local',
+    isLocked: false,
+    createdAt: new Date().toISOString(),
+    participants: [{
+      id: userId || 'p-local',
+      socketId: 'local',
+      name: userName || 'You',
+      role: 'HOST',
+      isMuted: initialMuted,
+      isCameraOff: initialCameraOff,
+      isScreenSharing: false,
+      connectionQuality: 'Excellent',
+      joinedAt: new Date().toISOString(),
+    }]
+  }));
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [activeSpeakerSocketId, setActiveSpeakerSocketId] = useState<string | null>(null);
   const [pinnedSocketId, setPinnedSocketId] = useState<string | null>(null);

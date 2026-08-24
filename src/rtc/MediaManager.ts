@@ -35,21 +35,16 @@ export class MediaManager {
       this.setupVolumeMeter(this.localStream);
       return this.localStream;
     } catch (err: any) {
-      console.warn('Could not get audio+video stream, falling back:', err);
-      // Audio-only fallback if video fails
-      if (err.name === 'NotAllowedError' || err.name === 'NotFoundError' || err.name === 'NotReadableError') {
-        try {
-          this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          this.setupVolumeMeter(this.localStream);
-          return this.localStream;
-        } catch (audioErr) {
-          console.error('Audio fallback failed:', audioErr);
-          // Return empty stream
-          this.localStream = new MediaStream();
-          return this.localStream;
-        }
+      console.warn('Could not get audio+video stream, trying audio fallback:', err);
+      try {
+        this.localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        this.setupVolumeMeter(this.localStream);
+        return this.localStream;
+      } catch (audioErr) {
+        console.warn('Media devices restricted or unavailable, returning avatar mode stream:', audioErr);
+        this.localStream = new MediaStream();
+        return this.localStream;
       }
-      throw err;
     }
   }
 
