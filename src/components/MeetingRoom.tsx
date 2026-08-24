@@ -152,22 +152,20 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
               const existingKeys = new Set(prev.participants.flatMap(p => [p.id, p.socketId, p.name]));
               const newParts = data.participants.filter((p: any) => !existingKeys.has(p.id) && !existingKeys.has(p.name));
               if (newParts.length === 0) return prev;
+              const mapped = newParts.map((p: any) => ({
+                id: p.id,
+                socketId: p.socketId || p.id,
+                name: p.name,
+                role: p.role || 'PARTICIPANT',
+                isMuted: false,
+                isCameraOff: false,
+                isScreenSharing: false,
+                connectionQuality: 'Excellent' as const,
+                joinedAt: p.joinedAt || new Date().toISOString(),
+              }));
               return {
                 ...prev,
-                participants: [
-                  ...prev.participants,
-                  ...newParts.map((p: any) => ({
-                    id: p.id,
-                    socketId: p.socketId || p.id,
-                    name: p.name,
-                    role: p.role || 'PARTICIPANT',
-                    isMuted: false,
-                    isCameraOff: false,
-                    isScreenSharing: false,
-                    connectionQuality: 'Excellent' as const,
-                    joinedAt: p.joinedAt || new Date().toISOString(),
-                  }))
-                ]
+                participants: [...prev.participants, ...mapped]
               };
             });
           }
