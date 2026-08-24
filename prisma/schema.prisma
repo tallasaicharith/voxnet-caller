@@ -1,0 +1,101 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String               @id @default(uuid())
+  name         String
+  email        String?              @unique
+  avatar       String?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  participants MeetingParticipant[]
+}
+
+model Meeting {
+  id           String               @id // Cryptographically generated (e.g., vox-k7x-92p)
+  title        String               @default("VoxNet Meeting")
+  hostId       String
+  isLocked     Boolean              @default(false)
+  createdAt    DateTime             @default(now())
+  endedAt      DateTime?
+  participants MeetingParticipant[]
+  messages     ChatMessage[]
+  files        FileAsset[]
+  recordings   Recording[]
+  events       MeetingEvent[]
+}
+
+model MeetingParticipant {
+  id        String           @id @default(uuid())
+  meetingId String
+  userId    String
+  name      String
+  role      String           @default("PARTICIPANT") // HOST | COHOST | PARTICIPANT
+  isMuted   Boolean          @default(false)
+  isCameraOff Boolean        @default(false)
+  joinedAt  DateTime         @default(now())
+  leftAt    DateTime?
+  meeting   Meeting          @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions  MeetingSession[]
+}
+
+model MeetingSession {
+  id             String             @id @default(uuid())
+  participantId  String
+  socketId       String             @unique
+  ipAddress      String?
+  userAgent      String?
+  connectedAt    DateTime           @default(now())
+  disconnectedAt DateTime?
+  status         String             @default("ACTIVE") // ACTIVE | DISCONNECTED
+  participant    MeetingParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+}
+
+model ChatMessage {
+  id         String   @id @default(uuid())
+  meetingId  String
+  senderId   String
+  senderName String
+  content    String
+  createdAt  DateTime @default(now())
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model FileAsset {
+  id         String   @id @default(uuid())
+  meetingId  String
+  fileName   String
+  mimeType   String
+  size       Int
+  storageKey String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model Recording {
+  id         String   @id @default(uuid())
+  meetingId  String
+  fileName   String
+  duration   Int      @default(0) // seconds
+  size       Int      @default(0) // bytes
+  storageKey String
+  createdAt  DateTime @default(now())
+  meeting    Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
+
+model MeetingEvent {
+  id        String   @id @default(uuid())
+  meetingId String
+  eventType String
+  payload   String   // JSON stringified event data
+  createdAt DateTime @default(now())
+  meeting   Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+}
