@@ -12,8 +12,10 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api', roomRoutes);
 
 // Health Check
-app.get('/health', (req, res) => {
+const healthHandler = (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+};
+app.get('/health', healthHandler);
+app.get('/api/health', healthHandler);
 
 export default app;

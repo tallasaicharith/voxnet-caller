@@ -7,10 +7,14 @@ import { generateSecureRoomId } from '../utils/roomUtils.js';
 
 const router = Router();
 
-// Configure Multer for File Uploads
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const uploadDir = process.env.UPLOAD_DIR || (isServerless ? '/tmp/uploads' : './uploads');
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+  try {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  } catch (e) {
+    console.warn('Could not create upload directory:', e.message);
+  }
 }
 
 const storage = multer.diskStorage({
