@@ -152,16 +152,15 @@ export class RTCClient {
       await this.signaling.connect();
 
       // Acquire local media
-      const stream = await this.media.getLocalMedia();
-      this.peerManager.setLocalStream(stream);
-
-      // Register local stream for volume / speaking
-      const socketId = this.signaling.getSocketId();
-      if (socketId) {
-        this.activeSpeaker.registerStream('local', stream);
+      let stream: MediaStream | null = null;
+      try {
+        stream = await this.media.getLocalMedia();
+        this.peerManager.setLocalStream(stream);
+      } catch (mediaErr) {
+        console.warn('Could not acquire local camera/mic stream:', mediaErr);
       }
 
-      // Join room via signaling server
+      // Join room via signaling server or fallback
       const res = await this.signaling.joinRoom(roomId, userName, userId);
       if (!res.success || !res.room) {
         throw new Error(res.error || 'Failed to join room');
@@ -169,14 +168,22 @@ export class RTCClient {
 
       this.currentRoomState = res.room;
       this.localParticipantId = res.participantId || null;
+
+      const socketId = this.signaling.getSocketId() || 'local';
+      if (stream) {
+        this.activeSpeaker.registerStream(socketId, stream);
+      }
+
       this.events.onRoomStateChange(res.room);
 
       // Start Quality Monitor
       const remoteSockets = res.room.participants
         .map(p => p.socketId)
-        .filter(s => s !== this.signaling.getSocketId());
+        .filter(s => s !== socketId);
 
-      this.qualityMonitor.startMonitoring((sId) => this.peerManager.getStats(sId), remoteSockets);
+      if (remoteSockets.length > 0) {
+        this.qualityMonitor.startMonitoring((sId) => this.peerManager.getStats(sId), remoteSockets);
+      }
 
       return res;
     } catch (err: any) {
