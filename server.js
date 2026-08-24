@@ -1,24 +1,31 @@
-const express = require('express');
-const path = require('path');
-const fs = require('fs');
+import express from 'express';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+import roomRoutes from './server/routes/roomRoutes.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve static files with explicit handling
-app.use((req, res, next) => {
-    const filePath = path.join(__dirname, req.path);
-    
-    // Check if file exists
-    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-        return res.sendFile(filePath);
-    }
-    
-    next();
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// API Routes
+app.use('/api', roomRoutes);
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Serve static assets  
-app.use(express.static(__dirname, {
+// Serve static assets from dist (or root if fallback)
+const distDir = path.join(__dirname, 'dist');
+const staticDir = fs.existsSync(distDir) ? distDir : __dirname;
+
+app.use(express.static(staticDir, {
     maxAge: '1h',
     setHeaders: (res, pathname) => {
         if (pathname.endsWith('.css')) {
@@ -29,14 +36,21 @@ app.use(express.static(__dirname, {
     }
 }));
 
-// Fallback to index.html for all routes
+// Fallback to index.html for SPA routes
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'index.html'));
+    const indexPath = fs.existsSync(path.join(distDir, 'index.html'))
+        ? path.join(distDir, 'index.html')
+        : path.join(__dirname, 'index.html');
+    res.sendFile(indexPath);
 });
 
-app.listen(PORT, () => {
-    console.log(`=================================================`);
-    console.log(`  VoxNet P2P Online Caller running on port ${PORT}`);
-    console.log(`  Open in browser: http://localhost:${PORT}`);
-    console.log(`=================================================`);
-});
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`=================================================`);
+        console.log(`  VoxNet P2P Online Caller running on port ${PORT}`);
+        console.log(`  Open in browser: http://localhost:${PORT}`);
+        console.log(`=================================================`);
+    });
+}
+
+export default app;

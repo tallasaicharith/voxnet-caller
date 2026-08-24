@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 
-const DB_FILE = path.resolve(process.env.DATABASE_URL ? process.env.DATABASE_URL.replace('file:', '') : './dev.db.json');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const defaultDbPath = isServerless ? '/tmp/dev.db.json' : './dev.db.json';
+const DB_FILE = path.resolve(process.env.DATABASE_URL ? process.env.DATABASE_URL.replace('file:', '') : defaultDbPath);
 
 // Memory store backed by file sync
 let dbData = {
