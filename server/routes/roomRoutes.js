@@ -144,6 +144,83 @@ router.get('/rooms/:id/messages', async (req, res) => {
 });
 
 /**
+ * POST /api/rooms/:id/messages
+ * Posts a new chat message for a meeting
+ */
+router.post('/rooms/:id/messages', async (req, res) => {
+  try {
+    const { id: meetingId } = req.params;
+    const { senderId, senderName, content } = req.body;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({ success: false, error: 'Message content required' });
+    }
+
+    const newMsg = await prisma.chatMessage.create({
+      data: {
+        meetingId,
+        senderId: senderId || 'anonymous',
+        senderName: senderName || 'User',
+        content: content.trim(),
+      }
+    });
+
+    res.status(201).json({ success: true, message: newMsg });
+  } catch (error) {
+    console.error('Error saving chat message:', error);
+    res.status(500).json({ success: false, error: 'Failed to save message' });
+  }
+});
+
+/**
+ * POST /api/rooms/:id/join
+ * Registers a participant joining a meeting
+ */
+router.post('/rooms/:id/join', async (req, res) => {
+  try {
+    const { id: meetingId } = req.params;
+    const { userId, userName, socketId } = req.body;
+
+    const p = await prisma.meetingParticipant.create({
+      data: {
+        meetingId,
+        userId: userId || `usr-${Date.now()}`,
+        name: userName || 'Participant',
+        role: 'PARTICIPANT',
+      }
+    });
+
+    res.status(200).json({ success: true, participant: p });
+  } catch (error) {
+    console.error('Error joining participant:', error);
+    res.status(500).json({ success: false, error: 'Failed to register participant' });
+  }
+});
+
+/**
+ * GET /api/rooms/:id/participants
+ * Fetches all participants in a meeting
+ */
+router.get('/rooms/:id/participants', async (req, res) => {
+  try {
+    const { id: meetingId } = req.params;
+    const meeting = await prisma.meeting.findUnique({
+      where: { id: meetingId },
+    });
+
+    if (!meeting) {
+      return res.status(404).json({ success: false, error: 'Meeting not found' });
+    }
+
+    const participants = meeting.participants || [];
+    res.json({ success: true, participants });
+  } catch (error) {
+    console.error('Error fetching participants:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch participants' });
+  }
+});
+
+/**
  * POST /api/rooms/:id/upload
  * Handles file attachment uploads with metadata persistence
  */

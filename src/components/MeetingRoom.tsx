@@ -76,6 +76,8 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
 
   const rtcClientRef = useRef<RTCClient | null>(null);
 
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+
   useEffect(() => {
     // Timer
     const timer = setInterval(() => {
@@ -119,20 +121,63 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
     client.initializeAndJoin(roomId, userName, userId).then(() => {
       if (initialMuted) client.toggleMicrophone();
       if (initialCameraOff) client.toggleCamera();
+      const st = client.media.getStream();
+      if (st) setLocalStream(st);
     });
 
-    // Fetch message history
-    fetch(`/api/rooms/${roomId}/messages`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.messages) {
-          setMessages(data.messages);
-        }
-      })
-      .catch(e => console.warn('Could not fetch message history:', e));
+    // Register join with API
+    fetch(`/api/rooms/${roomId}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: userId || 'local', userName }),
+    }).catch(e => console.warn('Could not register join with backend:', e));
+
+    // Message and Participant Polling for Vercel Serverless
+    const pollInterval = setInterval(() => {
+      fetch(`/api/rooms/${roomId}/messages`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.messages)) {
+            setMessages(data.messages);
+          }
+        })
+        .catch(() => {});
+
+      fetch(`/api/rooms/${roomId}/participants`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && Array.isArray(data.participants) && data.participants.length > 0) {
+            setRoomState(prev => {
+              if (!prev) return prev;
+              const existingIds = new Set(prev.participants.map(p => p.id));
+              const newParts = data.participants.filter((p: any) => !existingIds.has(p.id));
+              if (newParts.length === 0) return prev;
+              return {
+                ...prev,
+                participants: [
+                  ...prev.participants,
+                  ...newParts.map((p: any) => ({
+                    id: p.id,
+                    socketId: p.socketId || p.id,
+                    name: p.name,
+                    role: p.role || 'PARTICIPANT',
+                    isMuted: false,
+                    isCameraOff: false,
+                    isScreenSharing: false,
+                    connectionQuality: 'Excellent' as const,
+                    joinedAt: p.joinedAt || new Date().toISOString(),
+                  }))
+                ]
+              };
+            });
+          }
+        })
+        .catch(() => {});
+    }, 2000);
 
     return () => {
       clearInterval(timer);
+      clearInterval(pollInterval);
       client.leaveRoom();
     };
   }, [roomId, userName, userId]);
@@ -208,12 +253,27 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
   };
 
   const handleSendMessage = (content: string) => {
-    if (rtcClientRef.current && roomState) {
-      const socketId = rtcClientRef.current.signaling.getSocketId() || '';
-      const localP = roomState.participants.find(p => p.socketId === socketId);
-      const senderId = localP ? localP.userId : 'anonymous';
+    if (!content || !content.trim()) return;
 
-      rtcClientRef.current.signaling.sendChatMessage(roomId, senderId, userName, content);
+    const newMsg: ChatMessagePayload = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      meetingId: roomId,
+      senderId: userId || 'local',
+      senderName: userName || 'You',
+      content: content.trim(),
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, newMsg]);
+
+    fetch(`/api/rooms/${roomId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newMsg),
+    }).catch(e => console.warn('Could not post chat message:', e));
+
+    if (rtcClientRef.current) {
+      rtcClientRef.current.signaling.sendChatMessage(roomId, userId || 'local', userName, content);
     }
   };
 
@@ -234,7 +294,7 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
   };
 
   const localSocketId = rtcClientRef.current?.signaling.getSocketId();
-  const localParticipant = roomState?.participants.find(p => p.socketId === localSocketId);
+  const localParticipant = roomState?.participants.find(p => p.socketId === localSocketId || p.socketId === 'local' || p.id === userId);
   const isHost = localParticipant?.role === 'HOST';
 
   const formatTimer = (seconds: number) => {
@@ -293,8 +353,9 @@ export const MeetingRoom: React.FC<MeetingRoomProps> = ({
             participantsList.length <= 4 ? 'grid-cols-2 grid-rows-2' : 'grid-cols-3'
           }`}>
             {participantsList.map((p) => {
-              const isMe = p.socketId === localSocketId;
-              const stream = isMe ? rtcClientRef.current?.media.getStream() : remoteStreams.get(p.socketId);
+              const currentSocketId = rtcClientRef.current?.signaling.getSocketId();
+              const isMe = p.socketId === 'local' || p.socketId === currentSocketId || p.id === userId || p.id === 'p-local' || p.name === userName;
+              const stream = isMe ? (localStream || rtcClientRef.current?.media.getStream()) : remoteStreams.get(p.socketId);
 
               return (
                 <VideoTile
